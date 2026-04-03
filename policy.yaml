@@ -1,0 +1,35 @@
+version: "1.0"
+metadata:
+  name: "Sentinel-Security-Policy"
+  description: "Intent enforcement policy for autonomous trading agent"
+
+constraints:
+  - id: "max_trade_usd"
+    type: "threshold"
+    description: "Maximum value of a single order"
+    value: 2000
+
+  - id: "daily_spend_limit"
+    type: "threshold"
+    description: "Maximum total spend across all trades in one day"
+    value: 5000
+
+  - id: "ticker_whitelist"
+    type: "list"
+    description: "Only these tickers are permitted for trading"
+    values: ["NVDA", "AAPL", "MSFT", "TSLA", "GOOGL"]
+
+  - id: "earnings_blackout_hours"
+    type: "threshold"
+    description: "Block trades if earnings event within this many hours"
+    value: 48
+
+  - id: "no_credential_access"
+    type: "path_restriction"
+    description: "Agent cannot read credential or secret files"
+    blocked_paths: [".env", "*.key", "credentials", "secrets"]
+
+  - id: "no_external_upload"
+    type: "tool_restriction"
+    description: "Agent cannot POST portfolio data to external endpoints"
+    blocked_actions: ["exfiltrate", "upload_portfolio", "send_external"]
