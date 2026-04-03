@@ -30,7 +30,7 @@ This project is optimized for **Local Execution** on mobile workstations to ensu
 ### 1. Prerequisites
 * **Python 3.11** (Required for package stability)
 * **Ollama:** [Download here](https://ollama.com)
-* **Alpaca Markets:** [Sign up for Paper Trading Keys](https://alpaca.markets)
+
 
 ### 2. LLM Model Setup
 Pull the lightweight model optimized for 6GB VRAM to prevent GPU memory overflow:
