@@ -5,9 +5,7 @@ import alpaca_trade_api as tradeapi
 
 load_dotenv()
 
-# ═══════════════════════════════════════════════
-# FIX 1 — LOGGING (Rulebook: traceability required)
-# ═══════════════════════════════════════════════
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
@@ -18,9 +16,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("SentinelClaw")
 
-# ═══════════════════════════════════════════════
-# LOAD POLICY FROM YAML (not hardcoded if/else)
-# ═══════════════════════════════════════════════
+
 with open("policy.yaml", "r") as f:
     POLICY = yaml.safe_load(f)
 
@@ -31,18 +27,14 @@ def get_constraint(cid):
                    c.get("blocked_actions") or c.get("blocked_paths")
     return None
 
-# ═══════════════════════════════════════════════
-# ALPACA SETUP
-# ═══════════════════════════════════════════════
+
 api = tradeapi.REST(
     os.getenv("ALPACA_KEY"),
     os.getenv("ALPACA_SECRET"),
     os.getenv("ALPACA_BASE_URL")
 )
 
-# ═══════════════════════════════════════════════
-# FIX 3 — DAILY SPEND TRACKER (aggregate limit)
-# ═══════════════════════════════════════════════
+
 SPEND_FILE = "daily_spend.json"
 
 def get_daily_spend():
@@ -61,9 +53,7 @@ def update_daily_spend(amount):
         json.dump(data, f)
 
 # ═══════════════════════════════════════════════
-# FIX 2 — REAL EARNINGS CHECK (deterministic API)
-# Previously: return False always. Now: real call.
-# ═══════════════════════════════════════════════
+
 def check_earnings_blackout(ticker):
     try:
         url = (
@@ -95,9 +85,7 @@ def check_earnings_blackout(ticker):
         log.warning(f"Earnings check exception: {e} — defaulting SAFE")
         return False
 
-# ═══════════════════════════════════════════════
-# OLLAMA LLM CALL (sequential — saves 6GB VRAM)
-# ═══════════════════════════════════════════════
+
 def ask_ollama(prompt, agent_name):
     try:
         resp = requests.post(
@@ -116,9 +104,6 @@ def ask_ollama(prompt, agent_name):
         log.error(f"Ollama error ({agent_name}): {e}")
         return "Analysis unavailable."
 
-# ═══════════════════════════════════════════════
-# FIX 6 — STRUCTURED BULL/BEAR PROMPTS
-# ═══════════════════════════════════════════════
 def bull_agent(ticker):
     prompt = (
         f"You are a bullish equity analyst. Analyze ticker {ticker}. "
@@ -138,10 +123,7 @@ def bear_agent(ticker):
     )
     return ask_ollama(prompt, "BearAgent")
 
-# ═══════════════════════════════════════════════
-# WARDEN — ArmorClaw enforcement layer
-# Reads policy.yaml, runs all checks, returns signal
-# ═══════════════════════════════════════════════
+
 def warden_evaluate(ticker, quantity, price_per_share, bull_report, bear_report):
     log.info("=" * 55)
     log.info(f"WARDEN | Evaluating {ticker} | qty={quantity} | price=${price_per_share:.2f}")
@@ -149,21 +131,21 @@ def warden_evaluate(ticker, quantity, price_per_share, bull_report, bear_report)
     violations = []
     order_value = quantity * price_per_share
 
-    # Check 1: Ticker whitelist (policy: ticker_whitelist)
+   
     whitelist = get_constraint("ticker_whitelist")
     if ticker not in whitelist:
         violations.append(
             f"TICKER_BLOCKED: '{ticker}' not in approved list {whitelist}"
         )
 
-    # Check 2: Per-order size limit (policy: max_trade_usd)
+   
     max_trade = get_constraint("max_trade_usd")
     if order_value > max_trade:
         violations.append(
             f"ORDER_SIZE_EXCEEDED: ${order_value:.2f} exceeds per-order limit ${max_trade}"
         )
 
-    # Check 3: Daily aggregate limit (policy: daily_spend_limit)
+    
     daily = get_daily_spend()
     daily_limit = get_constraint("daily_spend_limit")
     projected = daily["total"] + order_value
@@ -172,7 +154,7 @@ def warden_evaluate(ticker, quantity, price_per_share, bull_report, bear_report)
             f"DAILY_LIMIT_EXCEEDED: Projected ${projected:.2f} exceeds daily limit ${daily_limit}"
         )
 
-    # Check 4: Earnings blackout (policy: earnings_blackout_hours)
+
     if check_earnings_blackout(ticker):
         violations.append(f"EARNINGS_BLACKOUT: Upcoming earnings event within policy window")
 
@@ -185,10 +167,7 @@ def warden_evaluate(ticker, quantity, price_per_share, bull_report, bear_report)
     log.info("WARDEN DECISION: GREEN — all constraints passed")
     return {"signal": "GREEN", "reasons": []}
 
-# ═══════════════════════════════════════════════
-# FIX 4 — EXFILTRATION BLOCK DEMO
-# Shows agent attempting .env read, Warden blocks it
-# ═══════════════════════════════════════════════
+
 def demo_exfiltration_block():
     log.info("=" * 55)
     log.info("EXFILTRATION DEMO: Agent attempting to read .env file")
@@ -213,9 +192,7 @@ def demo_exfiltration_block():
     else:
         log.info(f"File access allowed: {attempted}")
 
-# ═══════════════════════════════════════════════
-# PRICE FETCHER
-# ═══════════════════════════════════════════════
+
 def get_price(ticker):
     try:
         return float(api.get_latest_trade(ticker).price)
@@ -223,31 +200,29 @@ def get_price(ticker):
         log.warning(f"Price fetch failed for {ticker}: {e} — using $100 fallback")
         return 100.0
 
-# ═══════════════════════════════════════════════
-# MAIN CYCLE
-# ═══════════════════════════════════════════════
+
 def run_cycle(ticker, quantity=1):
     print(f"\n{'='*55}")
     print(f"  SENTINEL-CLAW | {ticker} | qty={quantity}")
     print(f"{'='*55}")
     log.info(f"CYCLE START: {ticker}")
 
-    # Reasoning layer
+   
     print("🐂 Bull Agent analyzing...")
     bull = bull_agent(ticker)
 
     print("🐻 Bear Agent analyzing...")
     bear = bear_agent(ticker)
 
-    # Get real price
+ 
     price = get_price(ticker)
     log.info(f"Market price: ${price:.2f}")
 
-    # Warden enforcement
+    
     print("🛡️  Warden checking policy...")
     decision = warden_evaluate(ticker, quantity, price, bull, bear)
 
-    # Execution
+    
     if decision["signal"] == "GREEN":
         print(f"\n🟢 APPROVED — BUY {quantity}x {ticker} @ ~${price:.2f}")
         try:
@@ -271,9 +246,7 @@ def run_cycle(ticker, quantity=1):
 
     log.info(f"CYCLE END: {ticker} | {decision['signal']}")
 
-# ═══════════════════════════════════════════════
-# DEMO RUNNER — runs all 4 demo scenarios
-# ═══════════════════════════════════════════════
+
 if __name__ == "__main__":
     print("\n[DEMO 1] Normal allowed trade")
     run_cycle("AAPL", quantity=1)
